@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron mt-4 p-5 bg-light rounded-3"> {# Updated Bootstrap class #}
+  <h1 class="display-4">Добро пожаловать в SecureNet!</h1>
+  <p class="lead">Система анализа и обеспечения безопасности корпоративной сети.</p>
+  <hr class="my-4">
+  <p>Используйте навигационное меню для перехода по разделам.</p>
+  <p>Начните с просмотра <a href="{{ request.url_for('agents_page') }}">агентов</a> или <a href="{{ request.url_for('devices_page') }}">обнаруженных устройств</a>.</p> {# Corrected route names #}
+</div>
+{% endblock %}

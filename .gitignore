@@ -1,0 +1,6 @@
+server/__pycache__/
+server/data/oui.txt
+server/.env
+*.py[co]
+.env
+venv

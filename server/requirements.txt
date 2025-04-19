@@ -1,0 +1,14 @@
+fastapi
+fastapi-utils
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-dotenv
+jinja2
+requests
+werkzeug
+pydantic[email]
+python-multipart
+itsdangerous
+typer[all]
+typing_inspect

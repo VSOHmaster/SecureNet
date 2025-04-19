@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-sm"> {# Added shadow #}
+      <div class="card-header text-center bg-dark text-white"> {# Added background/text color #}
+        <h4>Вход в SecureNet</h4>
+      </div>
+      <div class="card-body">
+        {# Flash messages are handled in base.html, but you might specifically want login errors here #}
+        {% if get_flashed_messages %}
+            {% for flash in get_flashed_messages %}
+                {% if flash.category == 'danger' %} {# Filter for danger messages specifically #}
+                 <div class="alert alert-danger d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                       {{ flash.message }}
+                    </div>
+                 </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        {# Corrected form action route name #}
+        <form method="POST" action="{{ request.url_for('login_action') }}">
+          {# Pass 'next' URL as hidden field if it exists #}
+          {% if next %}
+            <input type="hidden" name="next_url" value="{{ next }}">
+          {% endif %}
+          <div class="mb-3">
+            <label for="username" class="form-label">Имя пользователя</label>
+            <input type="text" class="form-control" id="username" name="username" required autofocus> {# Added autofocus #}
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Пароль</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+          </div>
+          <div class="mb-3 form-check">
+            {# Checkbox value is 'on' if checked, needs 'name' attribute #}
+            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+            <label class="form-check-label" for="remember">Запомнить меня</label>
+          </div>
+          <div class="d-grid"> {# Кнопка на всю ширину #}
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mt-4">Агенты</h2>
+<p>Просмотр и управление агентами сети. Отображается текущий статус и время последней активности.</p>
+
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-hover table-sm align-middle" id="agents-table">
+    <thead class="table-dark">
+      <tr>
+        <th>ID</th>
+        <th>Имя агента</th>
+        <th>Ext. ID</th>
+        <th>IP-адрес</th>
+        <th>Тип</th>
+        <th>Статус</th>
+        <th>Посл. активность (UTC)</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for agent in agents %}
+      <tr>
+        <td>{{ agent.id }}</td>
+        <td>{{ agent.name }}</td>
+        <td><code class="small">{{ agent.agent_ext_id }}</code></td>
+        <td>{{ agent.ip_address if agent.ip_address else 'N/A' }}</td>
+        <td>{{ agent.agent_type if agent.agent_type else 'N/A' }}</td>
+        <td>
+          {% if agent.status=='active' %}
+            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Активный</span>
+          {% elif agent.status=='inactive' %}
+            <span class="badge bg-secondary"><i class="bi bi-pause-circle me-1"></i>Неактивный</span>
+          {% else %}
+            <span class="badge bg-danger"><i class="bi bi-exclamation-octagon me-1"></i>{{ agent.status | capitalize }}</span>
+          {% endif %}
+        </td>
+        <td>
+            {% if agent.last_seen %}
+                <span title="{{ agent.last_seen.isoformat() }}">{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+            {% else %}
+                —
+            {% endif %}
+        </td>
+        <td>
+            {# <-- ФОРМА И КНОПКА УДАЛЕНИЯ --> #}
+            <form method="post" action="{{ url_for('delete_agent', agent_id=agent.id) }}" style="display: inline;"
+                  onsubmit="return confirm('Вы уверены, что хотите удалить агента \'{{ agent.name }}\'? Это действие необратимо.');">
+                <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить агента">
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-muted">Агенты не найдены.</td> {# Увеличили colspan #}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Форма для добавления нового агента (остается как была) -->
+<h4 class="mt-4">Добавить нового агента (вручную)</h4>
+<form method="post" action="{{ request.url_for('add_agent') }}">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-4 mb-3">
+      <label for="agentName" class="form-label">Имя агента</label>
+      <input type="text" class="form-control" id="agentName" name="agentName" required>
+    </div>
+    <div class="col-md-3 mb-3">
+      <label for="agentIP" class="form-label">IP-адрес (опц.)</label>
+      <input type="text" class="form-control" id="agentIP" name="agentIP" placeholder="192.168.1.X">
+    </div>
+    <div class="col-md-3 mb-3">
+      <label for="agentType" class="form-label">Тип</label>
+      <select class="form-select" id="agentType" name="agentType">
+        <option value="" selected>-- Выберите тип --</option>
+        <option value="Маршрутизатор">Маршрутизатор</option>
+        <option value="Коммутатор">Коммутатор</option>
+        <option value="Сервер">Сервер</option>
+        <option value="RaspberryPi">Raspberry Pi</option>
+        <option value="WiFi Точка">WiFi Точка</option>
+        <option value="Другой">Другой</option>
+      </select>
+    </div>
+     <div class="col-md-2 mb-3">
+        <button type="submit" class="btn btn-primary w-100">Добавить</button>
+     </div>
+  </div>
+</form>
+{% endblock %}

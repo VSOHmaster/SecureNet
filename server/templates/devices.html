@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mt-4">Устройства в сети</h2>
+
+{# Вкладки для переключения #}
+<ul class="nav nav-tabs mt-3 mb-3" id="deviceTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="active-devices-tab" data-bs-toggle="tab" data-bs-target="#active-devices" type="button" role="tab" aria-controls="active-devices" aria-selected="true">
+      Активные <span class="badge rounded-pill bg-success ms-1">{{ active_devices|length }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="all-devices-tab" data-bs-toggle="tab" data-bs-target="#all-devices" type="button" role="tab" aria-controls="all-devices" aria-selected="false">
+      Все <span class="badge rounded-pill bg-secondary ms-1">{{ all_devices|length }}</span>
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content" id="deviceTabsContent">
+  {# Вкладка Активные устройства #}
+  <div class="tab-pane fade show active" id="active-devices" role="tabpanel" aria-labelledby="active-devices-tab">
+    <p class="text-muted small">Устройства, обнаруженные в сети за последние {{ activity_threshold_minutes }} минут.</p>
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover table-sm align-middle" id="active-devices-table">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>IP-адрес</th>
+            <th>MAC-адрес</th>
+            <th>Производитель (OUI)</th>
+            <th>Статус</th>
+            <th>Заметки/Имя</th>
+            <th>Посл. обнаружение (UTC)</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for device in active_devices %}
+          {# Добавляем data-* атрибуты для передачи данных в JS модального окна #}
+          <tr data-device-id="{{ device.id }}"
+              data-device-status="{{ device.status }}"
+              data-device-notes="{{ device.notes | default('', true) }}">
+            <td>{{ device.id }}</td>
+            <td>{{ device.ip_address }}</td>
+            <td><code class="small">{{ device.mac_address }}</code></td>
+            <td>{{ device.vendor if device.vendor != 'Unknown' else '-' }}</td>
+            <td>
+              {% if device.status=='trusted' %}
+                <span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Доверенное</span>
+              {% elif device.status=='untrusted' %}
+                <span class="badge bg-warning text-dark"><i class="bi bi-question-circle me-1"></i>Недоверенное</span>
+              {% elif device.status=='blocked' %}
+                <span class="badge bg-danger"><i class="bi bi-slash-circle me-1"></i>Заблокировано</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ device.status | capitalize }}</span>
+              {% endif %}
+            </td>
+            <td>{{ device.notes | default('-', true) }}</td> {# <-- ОТОБРАЖЕНИЕ ЗАМЕТОК #}
+             <td>
+                 {% if device.last_seen %}
+                    <span title="{{ device.last_seen.isoformat() }}">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                 {% else %}
+                    —
+                 {% endif %}
+             </td>
+             <td>
+                {# <-- КНОПКА РЕДАКТИРОВАНИЯ --> #}
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editDeviceModal" title="Редактировать">
+                    <i class="bi bi-pencil-square"></i>
+                </button>
+             </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center text-muted">Активные устройства не найдены.</td> {# Увеличили colspan #}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Вкладка Все устройства #}
+  <div class="tab-pane fade" id="all-devices" role="tabpanel" aria-labelledby="all-devices-tab">
+    <p class="text-muted small">Все устройства, когда-либо обнаруженные в сети.</p>
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover table-sm align-middle" id="all-devices-table">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>IP-адрес</th>
+            <th>MAC-адрес</th>
+            <th>Производитель (OUI)</th>
+            <th>Статус</th>
+            <th>Заметки/Имя</th>
+            <th>Первое обнар. (UTC)</th>
+            <th>Последнее обнар. (UTC)</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for device in all_devices %}
+          <tr data-device-id="{{ device.id }}"
+              data-device-status="{{ device.status }}"
+              data-device-notes="{{ device.notes | default('', true) }}">
+            <td>{{ device.id }}</td>
+            <td>{{ device.ip_address }}</td>
+            <td><code class="small">{{ device.mac_address }}</code></td>
+            <td>{{ device.vendor if device.vendor != 'Unknown' else '-' }}</td>
+            <td>
+              {% if device.status=='trusted' %}
+                <span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Доверенное</span>
+              {% elif device.status=='untrusted' %}
+                <span class="badge bg-warning text-dark"><i class="bi bi-question-circle me-1"></i>Недоверенное</span>
+              {% elif device.status=='blocked' %}
+                <span class="badge bg-danger"><i class="bi bi-slash-circle me-1"></i>Заблокировано</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ device.status | capitalize }}</span>
+              {% endif %}
+            </td>
+            <td>{{ device.notes | default('-', true) }}</td> {# <-- ОТОБРАЖЕНИЕ ЗАМЕТОК #}
+             <td>
+                {% if device.first_seen %}
+                    <span title="{{ device.first_seen.isoformat() }}">{{ device.first_seen.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+             <td>
+                 {% if device.last_seen %}
+                    <span title="{{ device.last_seen.isoformat() }}">{{ device.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                 {% else %}
+                     —
+                 {% endif %}
+             </td>
+             <td>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#editDeviceModal" title="Редактировать">
+                    <i class="bi bi-pencil-square"></i>
+                </button>
+                <form method="post" action="{{ url_for('delete_device', device_id=device.id) }}" style="display: inline;"
+                      onsubmit="return confirm('Вы уверены, что хотите удалить устройство {{ device.mac_address }} (ID: {{ device.id }})? Это действие необратимо.');">
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить устройство">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </form>
+             </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="9" class="text-center text-muted">Устройства не обнаружены.</td> {# Увеличили colspan #}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div> {# end tab-content #}
+
+{# --- МОДАЛЬНОЕ ОКНО ДЛЯ РЕДАКТИРОВАНИЯ УСТРОЙСТВА --- #}
+<div class="modal fade" id="editDeviceModal" tabindex="-1" aria-labelledby="editDeviceModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editDeviceModalLabel">Редактировать устройство</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="editDeviceForm" method="post" action="">
+          <div class="modal-body">
+              <div class="mb-3">
+                <label for="editDeviceMAC" class="form-label">MAC-адрес</label>
+                <input type="text" class="form-control" id="editDeviceMAC" readonly disabled> {# Показываем MAC, но не даем менять #}
+              </div>
+              <div class="mb-3">
+                <label for="deviceVendor" class="form-label">Производитель (OUI)</label>
+                <input type="text" class="form-control" id="deviceVendor" name="vendor" placeholder="Можно переопределить">
+                <div class="form-text">Оставьте пустым для использования OUI по умолчанию.</div>
+              </div>
+              <div class="mb-3">
+                <label for="deviceStatus" class="form-label">Статус</label>
+                <select class="form-select" id="deviceStatus" name="status" required>
+                    <option value="untrusted">Недоверенное</option>
+                    <option value="trusted">Доверенное</option>
+                    <option value="blocked">Заблокировано</option>
+                </select>
+              </div>
+               <div class="mb-3">
+                <label for="deviceNotes" class="form-label">Заметки / Имя</label>
+                <textarea class="form-control" id="deviceNotes" name="notes" rows="3"></textarea>
+              </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var editDeviceModal = document.getElementById('editDeviceModal');
+    if (editDeviceModal) {
+        editDeviceModal.addEventListener('show.bs.modal', function (event) {
+            var button = event.relatedTarget;
+            var row = button.closest('tr');
+            var deviceId = row.getAttribute('data-device-id');
+            var currentStatus = row.getAttribute('data-device-status');
+            var currentNotes = row.getAttribute('data-device-notes');
+            var deviceMAC = row.cells[2].innerText;
+            var currentVendor = row.cells[3].innerText;
+
+            var form = document.getElementById('editDeviceForm');
+            var formActionUrl = `/devices/${deviceId}/update`;
+            form.action = formActionUrl;
+
+            var modalTitle = editDeviceModal.querySelector('.modal-title');
+            var macInput = editDeviceModal.querySelector('#editDeviceMAC');
+            var vendorInput = editDeviceModal.querySelector('#deviceVendor');
+            var statusSelect = editDeviceModal.querySelector('#deviceStatus');
+            var notesTextarea = editDeviceModal.querySelector('#deviceNotes');
+
+            modalTitle.textContent = 'Редактировать устройство: ' + deviceMAC;
+            macInput.value = deviceMAC;
+            vendorInput.value = (currentVendor === '-' || currentVendor.toLowerCase() === 'unknown') ? '' : currentVendor;
+            statusSelect.value = currentStatus;
+            notesTextarea.value = currentNotes;
+        });
+    }
+});
+</script>
+{% endblock %}

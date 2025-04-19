@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14-alpine
+    container_name: securenet_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-securenet_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-YourStrongPasswordHere}
+      POSTGRES_DB: ${POSTGRES_DB:-securenet_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-securenet_user} -d ${POSTGRES_DB:-securenet_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - securenet_network
+
+  server:
+    container_name: securenet_server
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./server:/app/server
+      - ./manage.py:/app/manage.py
+      - ./server/data:/app/server/data
+    ports:
+      - "${SERVER_PORT:-8000}:8000"
+    env_file:
+      - server/.env
+    command: uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - securenet_network
+    restart: unless-stopped
+
+  # --- Опционально: Запуск Scapy агента ---
+  # ВНИМАНИЕ: Требует настройки API ключа, URL сервера и сети!
+  # agent:
+  #   container_name: securenet_agent_scapy
+  #   build:
+  #     context: .
+  #     dockerfile: agent/Dockerfile
+  #   depends_on:
+  #     - server # Ждем запуска сервера (хотя агент может стартовать и раньше)
+  #   # --- Выбери ОДИН из вариантов сети ---
+  #   # Вариант 1: Host network (агент видит сеть хоста, проще для сканирования LAN)
+  #   # Требует запуска docker-compose с sudo
+  #   network_mode: "host"
+  #   # Вариант 2: Использовать Docker network + capabilities (более изолированно)
+  #   # networks:
+  #   #   - securenet_network
+  #   # cap_add:
+  #   #   - NET_RAW
+  #   #   - NET_ADMIN
+  #   # security_opt:
+  #   #   - apparmor:unconfined # Может потребоваться в некоторых системах
+  #   # --- Конец выбора варианта сети ---
+  #   environment:
+  #     # ОБЯЗАТЕЛЬНО: Установи API ключ в .env или здесь
+  #     - AGENT_API_KEY=${AGENT_API_KEY?Variable AGENT_API_KEY is not set}
+  #     # ОБЯЗАТЕЛЬНО: Установи URL сервера в .env или здесь
+  #     # Если сервер запущен через docker-compose, используй http://server:8000
+  #     # Если сервер на хосте, а агент в контейнере (не host network), используй IP хоста, например http://192.168.1.100:8000
+  #     # Если агент в host network, используй http://127.0.0.1:8000 или http://<IP_хоста>:8000
+  #     - AGENT_SERVER_URL=${AGENT_SERVER_URL:-http://server:8000}
+  #     # Опционально: CIDR сети (будет переопределено конфигом с сервера, если он доступен)
+  #     - AGENT_NETWORK_CIDR=${AGENT_NETWORK_CIDR:-192.168.1.0/24}
+  #   # Обновляем command для передачи API ключа, URL сервера и CIDR
+  #   command: ["${AGENT_API_KEY}", "${AGENT_SERVER_URL}", "${AGENT_NETWORK_CIDR}"]
+  #   restart: unless-stopped
+
+networks:
+  securenet_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

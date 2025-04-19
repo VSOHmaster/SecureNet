@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mt-4">Оповещения</h2>
+<p class="text-muted">Список событий безопасности и системных уведомлений (новейшие – первыми).</p>
+
+{% if alerts %}
+<ul class="list-group list-group-flush"> {# Use flush for less borders #}
+  {% for alert in alerts %}
+  <li class="list-group-item d-flex justify-content-between align-items-center {% if alert.acknowledged %}list-group-item-light text-muted{% else %}list-group-item-{{ alert.badge_color if alert.badge_color not in ['secondary', 'light'] else 'info' }}{% endif %}">
+    <div>
+      {# Icons based on severity or badge color #}
+      {% if alert.badge_color == 'danger' %}
+        <i class="bi bi-exclamation-octagon-fill text-danger me-2"></i>
+      {% elif alert.badge_color == 'warning' %}
+        <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+      {% elif alert.badge_color == 'success' %}
+         <i class="bi bi-check-circle-fill text-success me-2"></i>
+      {% else %}
+         <i class="bi bi-info-circle-fill text-info me-2"></i>
+      {% endif %}
+      <span class="small text-muted me-2" title="{{ alert.timestamp.isoformat() }}">{{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} UTC</span> - {{ alert.message }}
+    </div>
+    <span class="badge bg-{{ alert.badge_color }} text-dark rounded-pill">{{ alert.severity }}</span> {# Use pill #}
+    {# TODO: Add acknowledge button/logic later #}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+ <div class="alert alert-secondary mt-3" role="alert">
+  <i class="bi bi-info-circle me-2"></i> Оповещений нет.
+</div>
+{% endif %}
+
+{# TODO: Add pagination if alerts list grows large #}
+
+{% endblock %}

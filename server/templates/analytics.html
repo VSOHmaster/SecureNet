@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mt-4">Аналитика</h2>
+<p class="text-muted">Динамика сетевой активности.</p>
+
+{# --- Панель выбора интервала --- #}
+<div class="mb-3">
+  <label class="form-label me-2">Период:</label>
+  <div class="btn-group" role="group" aria-label="Выбор периода аналитики">
+    <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn" data-hours="6">6 часов</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn active" data-hours="12">12 часов</button> {# По умолчанию 12 часов #}
+    <button type="button" class="btn btn-sm btn-outline-secondary time-range-btn" data-hours="24">24 часа</button>
+  </div>
+</div>
+{# --- Конец панели выбора --- #}
+
+<div class="row">
+  <div class="col-lg-6 mb-4"> {# Используем col-lg для больших экранов #}
+    <div class="card">
+      <div class="card-header">
+         <h5><i class="bi bi-activity me-1"></i> Активные устройства (<span id="activeDevicesTimeRange">12 часов</span>)</h5>
+      </div>
+      <div class="card-body">
+        {# Контейнер для графика, чтобы управлять высотой #}
+        <div style="position: relative; height:300px">
+            <canvas id="activeDevicesChart"></canvas>
+        </div>
+         <div id="activeDevicesChartMsg" class="text-center text-muted mt-2" style="display: none;">Загрузка данных...</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6 mb-4">
+     <div class="card">
+       <div class="card-header">
+        <h5><i class="bi bi-exclamation-triangle me-1"></i> Оповещения (<span id="alertsTimeRange">12 часов</span>)</h5>
+       </div>
+       <div class="card-body">
+         <div style="position: relative; height:300px">
+            <canvas id="alertsChart"></canvas>
+         </div>
+         <div id="alertsChartMsg" class="text-center text-muted mt-2" style="display: none;">Загрузка данных...</div>
+       </div>
+     </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/utc.js"></script>
+<script>dayjs.extend(window.dayjs_plugin_utc);</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const activeDevicesCtx = document.getElementById('activeDevicesChart');
+    const alertsCtx = document.getElementById('alertsChart');
+    const activeDevicesMsg = document.getElementById('activeDevicesChartMsg');
+    const alertsChartMsg = document.getElementById('alertsChartMsg');
+    const timeRangeButtons = document.querySelectorAll('.time-range-btn');
+    const activeDevicesTimeRangeSpan = document.getElementById('activeDevicesTimeRange');
+    const alertsTimeRangeSpan = document.getElementById('alertsTimeRange');
+
+    let activeDevicesChartInstance = null;
+    let alertsChartInstance = null;
+    let currentHours = 12;
+
+    function showLoading(msgElement) {
+        if (msgElement) {
+            msgElement.style.display = 'block';
+            msgElement.innerText = 'Загрузка данных...';
+        }
+    }
+    function hideLoading(msgElement) {
+        if (msgElement) msgElement.style.display = 'none';
+    }
+    function showError(msgElement, message) {
+         if (msgElement) {
+            msgElement.innerText = message || 'Ошибка загрузки данных.';
+            msgElement.style.display = 'block';
+         }
+    }
+
+    const formatLabel = (isoString) => {
+        try {
+            const date = new Date(isoString);
+            const hours = date.getUTCHours().toString().padStart(2, '0');
+            const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        } catch (e) {
+            console.error("Error formatting date:", isoString, e);
+            return isoString.substring(11, 16);
+        }
+    };
+
+    async function fetchDataAndRenderCharts(hours = 12) {
+        showLoading(activeDevicesMsg);
+        showLoading(alertsChartMsg);
+        activeDevicesTimeRangeSpan.textContent = `${hours} часов`;
+        alertsTimeRangeSpan.textContent = `${hours} часов`;
+
+        const endTime = new Date();
+        const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+        const startTimeISO = startTime.toISOString();
+        const endTimeISO = endTime.toISOString();
+
+        const apiUrl = `{{ request.url_for('get_analytics_data') }}?start_time_iso=${startTimeISO}&end_time_iso=${endTimeISO}`;
+
+        try {
+            console.log(`Fetching analytics data for ${hours} hours from: ${apiUrl}`);
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            console.log("Data received:", data);
+
+            if (activeDevicesChartInstance) {
+                activeDevicesChartInstance.destroy();
+            }
+            if (alertsChartInstance) {
+                alertsChartInstance.destroy();
+            }
+
+            const formattedDeviceLabels = data.devices.labels.map(formatLabel);
+            const formattedAlertLabels = data.alerts.labels.map(formatLabel);
+
+            if (!data.devices.labels || data.devices.labels.length === 0) {
+                 showError(activeDevicesMsg, `Нет данных для активных устройств за ${hours}ч.`);
+            } else {
+                 hideLoading(activeDevicesMsg);
+            }
+            if (!data.alerts.labels || data.alerts.labels.length === 0) {
+                 showError(alertsChartMsg, `Нет данных для оповещений за ${hours}ч.`);
+            } else {
+                 hideLoading(alertsChartMsg);
+            }
+
+            if (data.devices.labels.length > 0) {
+                activeDevicesChartInstance = new Chart(activeDevicesCtx, {
+                    type: 'line',
+                    data: {
+                        labels: formattedDeviceLabels,
+                        datasets: [{
+                            label: 'Активные устройства',
+                            data: data.devices.data,
+                            fill: true,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            pointBackgroundColor: 'rgb(75, 192, 192)',
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Количество' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Время (UTC час)' }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (data.alerts.labels.length > 0) {
+                alertsChartInstance = new Chart(alertsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: formattedAlertLabels,
+                        datasets: [
+                            {
+                                label: 'Info',
+                                data: data.alerts.info_data,
+                                backgroundColor: 'rgba(54, 162, 235, 0.7)', // Blue
+                                borderColor: 'rgb(54, 162, 235)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Warning',
+                                data: data.alerts.warning_data,
+                                backgroundColor: 'rgba(255, 206, 86, 0.7)', // Yellow
+                                borderColor: 'rgb(255, 206, 86)',
+                                borderWidth: 1
+                            },
+                             {
+                                label: 'High',
+                                data: data.alerts.high_data || data.alerts.critical_data,
+                                backgroundColor: 'rgba(255, 159, 64, 0.7)', // Orange
+                                borderColor: 'rgb(255, 159, 64)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Critical',
+                                data: data.alerts.critical_data && data.alerts.high_data ? data.alerts.critical_data : [],
+                                backgroundColor: 'rgba(255, 99, 132, 0.7)', // Red
+                                borderColor: 'rgb(255, 99, 132)',
+                                borderWidth: 1
+                            }
+                        ].filter(dataset => dataset.data && dataset.data.length > 0)
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                stacked: true,
+                                 title: { display: true, text: 'Количество оповещений' }
+                            },
+                            x: {
+                                 stacked: true,
+                                 title: { display: true, text: 'Время (UTC час)' }
+                            }
+                        },
+                         plugins: {
+                            legend: { display: true, position: 'top' },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false
+                            }
+                        }
+                    }
+                });
+             }
+
+        } catch (error) {
+            console.error('Error fetching or rendering charts:', error);
+            showError(activeDevicesMsg, 'Ошибка загрузки данных для графика устройств.');
+            showError(alertsChartMsg, 'Ошибка загрузки данных для графика оповещений.');
+        }
+    }
+
+    timeRangeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            timeRangeButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            currentHours = parseInt(this.getAttribute('data-hours'), 10);
+            fetchDataAndRenderCharts(currentHours);
+        });
+    });
+
+    fetchDataAndRenderCharts(currentHours);
+
+    // setInterval(() => {
+    //      console.log(`Auto-refreshing charts for ${currentHours} hours...`);
+    //      fetchDataAndRenderCharts(currentHours);
+    // }, 5 * 60 * 1000); // Каждые 5 минут
+});
+</script>
+{% endblock %}
